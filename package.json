@@ -10,7 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^16.5.0",
     "escpos": "^3.0.0-alpha.6",
-    "escpos-network": "^3.0.0-alpha.5"
+    "escpos-network": "^3.0.0-alpha.5",
+    "pusher-js": "^8.4.0",
+    "winston": "^3.17.0"
   }
 }
