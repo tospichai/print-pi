@@ -1,82 +1,91 @@
 "use strict";
+
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
+const http = require("http");
 const escpos = require("escpos");
 escpos.Network = require("escpos-network");
+
 const logger = require("./logger");
 const Pusher = require("pusher-js");
 require("dotenv").config();
 
-const device = new escpos.Network(
-  process.env.PRINTER_IP,
-  process.env.PRINTER_PORT
-);
-const printer = new escpos.Printer(device);
+let device = createPrinterDevice();
+let printer = new escpos.Printer(device);
 
 const pusher = new Pusher(process.env.PUSHER_APP_KEY, {
   cluster: process.env.PUSHER_APP_CLUSTER,
   encrypted: true,
 });
 
-const channel = pusher.subscribe("orders");
+pusher.subscribe("orders").bind("print", async (data) => {
+  const imageUrl = data.fullPath;
+  logger.info(`📦 Order created: ${imageUrl}`);
 
-channel.bind("print", function (data) {
-  logger.info(`print: ${data.fullPath}`);
-  console.log("📦 Order created:", data.fullPath);
+  try {
+    const filename = getFilenameFromUrl(imageUrl);
+    const tempImagePath = path.join(__dirname, filename);
 
-  const url = new URL(data.fullPath);
-  const pathname = url.pathname;
-  const filename = pathname.substring(pathname.lastIndexOf("/") + 1);
+    await downloadImage(imageUrl, tempImagePath);
+    logger.info("✅ Image downloaded successfully");
 
-  const tempImagePath = path.join(__dirname, filename);
-
-  downloadImage(data.fullPath, tempImagePath, function (err) {
-    if (err) {
-      logger.error(`❌ Error downloading image: : ${err.message}`, {
-        stack: err.stack,
-      });
-      return;
+    if (!device) {
+      logger.warn("⚠️ Printer device is null. Reconnecting...");
+      device = createPrinterDevice();
+      printer = new escpos.Printer(device);
     }
 
-    console.log("success");
-
-    escpos.Image.load(tempImagePath, function (image) {
-      device.open(function () {
+    escpos.Image.load(tempImagePath, (image) => {
+      device.open(() => {
         printer
           .align("ct")
           .image(image, "D24")
-          .then(() => {
-            printer.cut().close();
-            fs.unlink(tempImagePath, (unlinkErr) => {
-              if (unlinkErr) {
-                logger.error(
-                  `❌ Error deleting temp image: : ${unlinkErr.message}`,
-                  {
-                    stack: unlinkErr.stack,
-                  }
-                );
+          .then(() => printer.cut().close())
+          .finally(() => {
+            fs.unlink(tempImagePath, (err) => {
+              if (err) {
+                logger.error(`❌ Failed to delete temp image: ${err.message}`, {
+                  stack: err.stack,
+                });
               }
             });
           });
       });
     });
-  });
+  } catch (err) {
+    logger.error(`❌ Print process failed: ${err.message}`, {
+      stack: err.stack,
+    });
+  }
 });
 
-function downloadImage(url, dest, callback) {
-  const file = fs.createWriteStream(dest);
-  const protocol = url.startsWith("https") ? https : http;
+function createPrinterDevice() {
+  return new escpos.Network(process.env.PRINTER_IP, process.env.PRINTER_PORT);
+}
 
-  protocol
-    .get(url, function (response) {
-      response.pipe(file);
-      file.on("finish", function () {
-        file.close(callback);
+function getFilenameFromUrl(url) {
+  try {
+    const { pathname } = new URL(url);
+    return path.basename(pathname);
+  } catch (err) {
+    logger.error(`❌ Invalid URL: ${url}`, { stack: err.stack });
+    throw err;
+  }
+}
+
+function downloadImage(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    const client = url.startsWith("https") ? https : http;
+
+    client
+      .get(url, (response) => {
+        response.pipe(file);
+        file.on("finish", () => file.close(resolve));
+      })
+      .on("error", (err) => {
+        fs.unlink(destPath, () => reject(err));
       });
-    })
-    .on("error", function (err) {
-      fs.unlink(dest);
-      if (callback) callback(err.message);
-    });
+  });
 }
