@@ -1,5 +1,4 @@
 "use strict";
-
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -14,12 +13,36 @@ require("dotenv").config();
 let device = createPrinterDevice();
 let printer = new escpos.Printer(device);
 
+const printQueue = [];
+let isPrinting = false;
+
 const pusher = new Pusher(process.env.PUSHER_APP_KEY, {
   cluster: process.env.PUSHER_APP_CLUSTER,
   encrypted: true,
 });
 
 pusher.subscribe("orders").bind("print", async (data) => {
+  printQueue.push(data);
+  processPrintQueue();
+});
+
+async function processPrintQueue() {
+  if (isPrinting || printQueue.length === 0) return;
+
+  isPrinting = true;
+  const data = printQueue.shift();
+
+  try {
+    await handlePrint(data);
+  } catch (err) {
+    logger.error(`❌ Error in print job: ${err.message}`, { stack: err.stack });
+  } finally {
+    isPrinting = false;
+    processPrintQueue();
+  }
+}
+
+async function handlePrint(data) {
   const imageUrl = data.fullPath;
   logger.info(`📦 Order created: ${imageUrl}`);
 
@@ -58,7 +81,7 @@ pusher.subscribe("orders").bind("print", async (data) => {
       stack: err.stack,
     });
   }
-});
+}
 
 function createPrinterDevice() {
   return new escpos.Network(process.env.PRINTER_IP, process.env.PRINTER_PORT);
