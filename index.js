@@ -69,7 +69,7 @@ async function handlePrint(data) {
 
             logger.info(`✅ Print Success`);
           })
-          .cacth((err) => {
+          .catch((err) => {
             logger.error(`❌ Error during print job: ${err.message}`, {
               stack: err.stack,
             });
