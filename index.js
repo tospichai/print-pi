@@ -64,7 +64,16 @@ async function handlePrint(data) {
         printer
           .align("ct")
           .image(image, "D24")
-          .then(() => printer.cut().close())
+          .then(() => {
+            printer.cut().close();
+
+            logger.info(`✅ Print Success`);
+          })
+          .cacth((err) => {
+            logger.error(`❌ Error during print job: ${err.message}`, {
+              stack: err.stack,
+            });
+          })
           .finally(() => {
             fs.unlink(tempImagePath, (err) => {
               if (err) {
@@ -73,7 +82,6 @@ async function handlePrint(data) {
                 });
               }
             });
-            logger.info(`✅ Print Success`);
           });
       });
     });
