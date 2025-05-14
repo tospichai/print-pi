@@ -73,6 +73,7 @@ async function handlePrint(data) {
                 });
               }
             });
+            logger.info(`✅ Print Success`);
           });
       });
     });
