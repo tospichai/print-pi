@@ -59,42 +59,40 @@ async function handlePrint(data) {
 
     const printer = new escpos.Printer(device);
 
-    escpos.Image.load(tempImagePath, (image) => {
-      device.open(() => {
-        printer
-          .align('ct')
-          .image(image, 'D24')
-          .then(() => {
-            printer.cut().close();
-          })
-          .then(() => {
-            device.close();
-            logger.info('🔌 Device connection closed');
-            logger.info(`✅ Print Success`);
-          })
-          .then(() => {
-            return new Promise((resolve) => setTimeout(resolve, 3000));
-          })
-          .catch((err) => {
-            logger.error(`❌ Error during print job: ${err.message}`, {
+    escpos.Image.load(tempImagePath, async (image) => {
+      try {
+        await new Promise((resolve, reject) =>
+          device.open((err) => (err ? reject(err) : resolve()))
+        );
+
+        await printer.align('ct').image(image, 'D24');
+
+        await printer.cut();
+        await printer.close();
+
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        device.close();
+        logger.info('🔌 Device connection closed');
+        logger.info('✅ Print Success');
+      } catch (err) {
+        logger.error(`❌ Error during print job: ${err.message}`, {
+          stack: err.stack,
+        });
+
+        if (device) {
+          device.close();
+          logger.info('🔌 Device connection closed after error');
+        }
+      } finally {
+        fs.unlink(tempImagePath, (err) => {
+          if (err) {
+            logger.error(`❌ Failed to delete temp image: ${err.message}`, {
               stack: err.stack,
             });
-
-            if (device) {
-              device.close();
-              logger.info('🔌 Device connection closed after error');
-            }
-          })
-          .finally(() => {
-            fs.unlink(tempImagePath, (err) => {
-              if (err) {
-                logger.error(`❌ Failed to delete temp image: ${err.message}`, {
-                  stack: err.stack,
-                });
-              }
-            });
-          });
-      });
+          }
+        });
+      }
     });
   } catch (err) {
     logger.error(`❌ Print process failed: ${err.message}`, {
