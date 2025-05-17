@@ -66,13 +66,21 @@ async function handlePrint(data) {
           .image(image, 'D24')
           .then(() => {
             printer.cut().close();
-
+          })
+          .then(() => {
+            device.close();
+            logger.info('🔌 Device connection closed');
             logger.info(`✅ Print Success`);
           })
           .catch((err) => {
             logger.error(`❌ Error during print job: ${err.message}`, {
               stack: err.stack,
             });
+
+            if (device) {
+              device.close();
+              logger.info('🔌 Device connection closed after error');
+            }
           })
           .finally(() => {
             fs.unlink(tempImagePath, (err) => {
@@ -82,11 +90,6 @@ async function handlePrint(data) {
                 });
               }
             });
-
-            if (device) {
-              device.close();
-              logger.info('🔌 Device connection closed');
-            }
           });
       });
     });
