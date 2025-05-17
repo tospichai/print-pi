@@ -1,17 +1,14 @@
-"use strict";
-const path = require("path");
-const fs = require("fs");
-const https = require("https");
-const http = require("http");
-const escpos = require("escpos");
-escpos.Network = require("escpos-network");
+'use strict';
+const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const http = require('http');
+const escpos = require('escpos');
+escpos.Network = require('escpos-network');
 
-const logger = require("./logger");
-const Pusher = require("pusher-js");
-require("dotenv").config();
-
-let device = createPrinterDevice();
-let printer = new escpos.Printer(device);
+const logger = require('./logger');
+const Pusher = require('pusher-js');
+require('dotenv').config();
 
 const printQueue = [];
 let isPrinting = false;
@@ -21,7 +18,7 @@ const pusher = new Pusher(process.env.PUSHER_APP_KEY, {
   encrypted: true,
 });
 
-pusher.subscribe("orders").bind("print", async (data) => {
+pusher.subscribe('orders').bind('print', async (data) => {
   printQueue.push(data);
   processPrintQueue();
 });
@@ -51,19 +48,22 @@ async function handlePrint(data) {
     const tempImagePath = path.join(__dirname, filename);
 
     await downloadImage(imageUrl, tempImagePath);
-    logger.info("✅ Image downloaded successfully");
+    logger.info('✅ Image downloaded successfully');
+
+    const device = await createPrinterDeviceWithRetry();
 
     if (!device) {
-      logger.warn("⚠️ Printer device is null. Reconnecting...");
-      device = createPrinterDevice();
-      printer = new escpos.Printer(device);
+      logger.warn('⚠️ Printer device is null. Reconnecting...');
+      return;
     }
+
+    const printer = new escpos.Printer(device);
 
     escpos.Image.load(tempImagePath, (image) => {
       device.open(() => {
         printer
-          .align("ct")
-          .image(image, "D24")
+          .align('ct')
+          .image(image, 'D24')
           .then(() => {
             printer.cut().close();
 
@@ -92,8 +92,43 @@ async function handlePrint(data) {
   }
 }
 
-function createPrinterDevice() {
-  return new escpos.Network(process.env.PRINTER_IP, process.env.PRINTER_PORT);
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function createPrinterDeviceWithRetry(retries = 3, delay = 1000) {
+  const ip = process.env.PRINTER_IP;
+  const port = process.env.PRINTER_PORT || 9100;
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const device = new escpos.Network(ip, port);
+
+      await new Promise((resolve, reject) => {
+        device.open((error) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      return device;
+    } catch (err) {
+      console.warn(
+        `❌ Printer connection failed (attempt ${i + 1}/${retries}): ${
+          err.message
+        }`
+      );
+      if (i < retries - 1) {
+        await sleep(delay);
+      }
+    }
+  }
+
+  console.error('❌ Failed to connect to printer after multiple attempts.');
+  return null;
 }
 
 function getFilenameFromUrl(url) {
@@ -109,14 +144,14 @@ function getFilenameFromUrl(url) {
 function downloadImage(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
-    const client = url.startsWith("https") ? https : http;
+    const client = url.startsWith('https') ? https : http;
 
     client
       .get(url, (response) => {
         response.pipe(file);
-        file.on("finish", () => file.close(resolve));
+        file.on('finish', () => file.close(resolve));
       })
-      .on("error", (err) => {
+      .on('error', (err) => {
         fs.unlink(destPath, () => reject(err));
       });
   });
