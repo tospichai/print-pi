@@ -82,6 +82,11 @@ async function handlePrint(data) {
                 });
               }
             });
+
+            if (device?.interface?.destroy) {
+              device.interface.destroy();
+              logger.info('🔌 Device connection closed');
+            }
           });
       });
     });
