@@ -72,6 +72,9 @@ async function handlePrint(data) {
             logger.info('🔌 Device connection closed');
             logger.info(`✅ Print Success`);
           })
+          .then(() => {
+            return new Promise((resolve) => setTimeout(resolve, 3000));
+          })
           .catch((err) => {
             logger.error(`❌ Error during print job: ${err.message}`, {
               stack: err.stack,
