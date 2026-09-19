@@ -28,4 +28,12 @@ class PrinterConfigTest {
             errors,
         )
     }
+
+    @Test
+    fun invalidPortTextBecomesAValidationErrorWithoutThrowing() {
+        val config = PrinterConfigDraft("key", "ap1", "printer.local", "not-a-number").toConfig()
+
+        assertEquals(-1, config.printerPort)
+        assertTrue(config.validate().contains("Printer port must be between 1 and 65535"))
+    }
 }

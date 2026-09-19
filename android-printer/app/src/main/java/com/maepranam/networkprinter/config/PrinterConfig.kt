@@ -17,3 +17,17 @@ data class PrinterConfig(
         const val DEFAULT_PRINTER_PORT = 9100
     }
 }
+
+data class PrinterConfigDraft(
+    val appKey: String,
+    val cluster: String,
+    val printerHost: String,
+    val printerPort: String,
+) {
+    fun toConfig(): PrinterConfig = PrinterConfig(
+        appKey = appKey,
+        cluster = cluster,
+        printerHost = printerHost,
+        printerPort = printerPort.toIntOrNull() ?: -1,
+    )
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mae Pra Nam Printer</string>
+    <string name="usage_note">เปิดระบบรับงานไว้ตลอดเพื่อรับใบเสร็จ งานที่ส่งมาตอนปิดแอปหรือหยุด service จะไม่ถูกเรียกคืนในเวอร์ชันทดสอบนี้</string>
+    <string name="pusher_app_key">Pusher App Key</string>
+    <string name="pusher_cluster">Pusher Cluster เช่น ap1</string>
+    <string name="printer_host">Printer IP / hostname</string>
+    <string name="printer_port">Printer port (ปกติ 9100)</string>
+    <string name="start">บันทึกและเริ่มรับงาน</string>
+    <string name="stop">หยุดรับงาน</string>
+    <string name="test_print">ทดสอบพิมพ์</string>
+    <string name="recent_log">เหตุการณ์ล่าสุด</string>
+    <string name="validation_title">ตรวจสอบการตั้งค่า</string>
+    <string name="status_stopped">สถานะ: หยุดทำงาน</string>
+    <string name="status_connecting">สถานะ: กำลังเชื่อมต่อ</string>
+    <string name="status_ready">สถานะ: พร้อมรับงาน</string>
+    <string name="status_printing">สถานะ: กำลังพิมพ์</string>
+    <string name="status_error">สถานะ: เกิดข้อผิดพลาด</string>
+</resources>
