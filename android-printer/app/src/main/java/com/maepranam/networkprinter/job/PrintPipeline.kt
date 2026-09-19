@@ -69,6 +69,7 @@ class PrintWorker(
                 break
             }
 
+            val previousStatus = runtime.snapshot().status
             try {
                 process(request)
             } catch (interrupted: InterruptedException) {
@@ -81,7 +82,7 @@ class PrintWorker(
                     LogLevel.ERROR,
                 )
             } finally {
-                if (isRunning()) runtime.setStatus(PrinterStatus.READY)
+                runtime.compareAndSetStatus(PrinterStatus.PRINTING, previousStatus)
             }
         }
     }

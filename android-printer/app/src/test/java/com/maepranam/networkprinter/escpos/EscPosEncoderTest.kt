@@ -40,4 +40,9 @@ class EscPosEncoderTest {
     fun rejectsNonPositiveDimensions() {
         RasterImage(0, 1, intArrayOf()).also(encoder::encode)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsHeightThatCannotFitEscPosRasterHeader() {
+        encoder.encode(RasterImage(1, 65_536, IntArray(65_536)))
+    }
 }

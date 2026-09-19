@@ -21,7 +21,12 @@ class AndroidImageAdapter {
         }
 
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
+            inSampleSize = ImageSampling.sampleSize(
+                bounds.outWidth,
+                bounds.outHeight,
+                TARGET_DECODE_WIDTH,
+                MAX_DECODE_PIXELS,
+            )
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
@@ -79,6 +84,7 @@ class AndroidImageAdapter {
         return try {
             val width = scaled.width
             val height = scaled.height
+            if (height > MAX_RASTER_HEIGHT) throw IOException("Receipt image is too tall to print")
             val pixels = IntArray(width * height)
             scaled.getPixels(pixels, 0, width, 0, 0, width, height)
             RasterImage(width, height, pixels)
@@ -87,21 +93,11 @@ class AndroidImageAdapter {
         }
     }
 
-    private fun sampleSize(width: Int, height: Int): Int {
-        var sample = 1
-        while (
-            width / sample > TARGET_DECODE_WIDTH ||
-            (width.toLong() / sample) * (height.toLong() / sample) > MAX_DECODE_PIXELS
-        ) {
-            sample *= 2
-        }
-        return sample
-    }
-
     private companion object {
         const val PRINTER_WIDTH_DOTS = 576
         const val TARGET_DECODE_WIDTH = 1_152
         const val MAX_DECODE_PIXELS = 8_000_000L
+        const val MAX_RASTER_HEIGHT = 0xffff
         const val TEST_IMAGE_HEIGHT = 220
         const val CHECKER_SIZE = 24
         val TEST_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")

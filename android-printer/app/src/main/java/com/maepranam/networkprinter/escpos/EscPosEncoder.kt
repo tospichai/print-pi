@@ -5,6 +5,8 @@ class EscPosEncoder(
 ) {
     fun encode(image: RasterImage): ByteArray {
         val rowBytes = (image.width + 7) / 8
+        require(rowBytes <= MAX_RASTER_DIMENSION) { "Raster width exceeds ESC/POS limit" }
+        require(image.height <= MAX_RASTER_DIMENSION) { "Raster height exceeds ESC/POS limit" }
         val body = ByteArray(rowBytes * image.height)
 
         for (y in 0 until image.height) {
@@ -57,5 +59,6 @@ class EscPosEncoder(
         const val LINE_FEED: Byte = 0x0a
         const val CUT: Byte = 0x56
         const val CUT_FULL: Byte = 0x00
+        const val MAX_RASTER_DIMENSION = 0xffff
     }
 }

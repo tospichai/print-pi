@@ -8,13 +8,18 @@ data class PrinterConfig(
 ) {
     fun validate(): List<String> = buildList {
         if (appKey.isBlank()) add("Pusher App Key is required")
-        if (cluster.isBlank()) add("Pusher Cluster is required")
+        if (cluster.isBlank()) {
+            add("Pusher Cluster is required")
+        } else if (!cluster.matches(CLUSTER_PATTERN)) {
+            add("Pusher Cluster may contain only letters, numbers, and hyphens")
+        }
         if (printerHost.isBlank()) add("Printer IP or hostname is required")
         if (printerPort !in 1..65_535) add("Printer port must be between 1 and 65535")
     }
 
     companion object {
         const val DEFAULT_PRINTER_PORT = 9100
+        private val CLUSTER_PATTERN = Regex("^[A-Za-z0-9-]+$")
     }
 }
 

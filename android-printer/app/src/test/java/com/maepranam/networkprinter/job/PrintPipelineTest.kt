@@ -4,6 +4,7 @@ import com.maepranam.networkprinter.config.PrinterConfig
 import com.maepranam.networkprinter.escpos.EscPosEncoder
 import com.maepranam.networkprinter.escpos.RasterImage
 import com.maepranam.networkprinter.runtime.PrinterRuntime
+import com.maepranam.networkprinter.runtime.PrinterStatus
 import java.io.File
 import java.io.IOException
 import java.net.URI
@@ -68,6 +69,37 @@ class PrintPipelineTest {
         )
 
         assertEquals(listOf("/2"), processed)
+    }
+
+    @Test
+    fun standaloneTestPrintRestoresStoppedInsteadOfClaimingReady() {
+        val runtime = PrinterRuntime()
+        val requests = listOf<PrintRequest>(PrintRequest.TestPage).iterator()
+
+        PrintWorker(runtime).run(
+            nextRequest = { requests.next() },
+            isRunning = { requests.hasNext() },
+            process = { runtime.setStatus(PrinterStatus.PRINTING) },
+        )
+
+        assertEquals(PrinterStatus.STOPPED, runtime.snapshot().status)
+    }
+
+    @Test
+    fun connectionErrorDuringPrintIsNotOverwrittenWithReady() {
+        val runtime = PrinterRuntime().apply { setStatus(PrinterStatus.READY) }
+        val requests = listOf<PrintRequest>(PrintRequest.TestPage).iterator()
+
+        PrintWorker(runtime).run(
+            nextRequest = { requests.next() },
+            isRunning = { requests.hasNext() },
+            process = {
+                runtime.setStatus(PrinterStatus.PRINTING)
+                runtime.setStatus(PrinterStatus.ERROR)
+            },
+        )
+
+        assertEquals(PrinterStatus.ERROR, runtime.snapshot().status)
     }
 
     private fun pipeline(file: File, printerFails: Boolean): PrintPipeline = PrintPipeline(

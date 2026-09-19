@@ -45,6 +45,12 @@ class PrinterRuntime(
         }
     }
 
+    fun compareAndSetStatus(expected: PrinterStatus, newStatus: PrinterStatus): Boolean = synchronized(lock) {
+        if (status != expected) return@synchronized false
+        status = newStatus
+        true
+    }
+
     fun appendLog(message: String, level: LogLevel = LogLevel.INFO) {
         synchronized(lock) {
             logs.addLast(LogEntry(Instant.now(), level, message))

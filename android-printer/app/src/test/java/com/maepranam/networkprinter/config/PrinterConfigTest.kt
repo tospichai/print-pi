@@ -36,4 +36,11 @@ class PrinterConfigTest {
         assertEquals(-1, config.printerPort)
         assertTrue(config.validate().contains("Printer port must be between 1 and 65535"))
     }
+
+    @Test
+    fun rejectsClusterCharactersThatCrashPusherInitialization() {
+        val errors = PrinterConfig("key", "ap1 bad", "printer.local", 9100).validate()
+
+        assertTrue(errors.contains("Pusher Cluster may contain only letters, numbers, and hyphens"))
+    }
 }

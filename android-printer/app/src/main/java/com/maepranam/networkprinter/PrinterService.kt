@@ -28,7 +28,6 @@ import com.maepranam.networkprinter.runtime.LogLevel
 import com.maepranam.networkprinter.runtime.PrinterRuntime
 import com.maepranam.networkprinter.runtime.PrinterStatus
 import com.pusher.client.Pusher
-import com.pusher.client.PusherOptions
 import com.pusher.client.connection.ConnectionEventListener
 import com.pusher.client.connection.ConnectionState
 import com.pusher.client.connection.ConnectionStateChange
@@ -40,6 +39,7 @@ class PrinterService : Service() {
     private val networkPrinter = NetworkPrinter()
     private val imageAdapter = AndroidImageAdapter()
     private lateinit var configStore: PrinterConfigStore
+    private lateinit var receiptDownloader: ReceiptDownloader
     private lateinit var pipeline: PrintPipeline
     private lateinit var eventAcceptor: PrintEventAcceptor
 
@@ -52,9 +52,9 @@ class PrinterService : Service() {
     override fun onCreate() {
         super.onCreate()
         configStore = PrinterConfigStore(this)
-        val downloader = ReceiptDownloader(cacheDir)
+        receiptDownloader = ReceiptDownloader(cacheDir)
         pipeline = PrintPipeline(
-            receiptSource = ReceiptSource { receipt -> downloader.download(receipt.source) },
+            receiptSource = ReceiptSource { receipt -> receiptDownloader.download(receipt.source) },
             imageSource = object : ImageSource {
                 override fun decode(file: File): RasterImage = imageAdapter.decode(file)
 
@@ -87,6 +87,8 @@ class PrinterService : Service() {
         pusher?.disconnect()
         pusher = null
         running = false
+        receiptDownloader.cancelActive()
+        networkPrinter.cancelActive()
         workerThread?.interrupt()
         try {
             workerThread?.join(WORKER_JOIN_TIMEOUT_MS)
@@ -140,11 +142,17 @@ class PrinterService : Service() {
                 nextRequest = { queue.take() },
                 isRunning = { running },
                 process = { request ->
+                    val previousStatus = runtime.snapshot().status
                     showNotification("Printing receipt")
                     try {
                         pipeline.process(request, configStore.load())
                     } finally {
-                        if (running) showNotification("Waiting for print jobs")
+                        if (running) {
+                            val currentStatus = runtime.snapshot().status
+                            showNotification(statusNotificationText(
+                                if (currentStatus == PrinterStatus.PRINTING) previousStatus else currentStatus,
+                            ))
+                        }
                     }
                 },
             )
@@ -156,15 +164,26 @@ class PrinterService : Service() {
         runtime.setStatus(PrinterStatus.CONNECTING)
         showNotification("Connecting to Pusher")
 
-        val client = Pusher(
-            config.appKey,
-            PusherOptions().setCluster(config.cluster).setUseTLS(true),
-        )
-        client.subscribe(CHANNEL_NAME).bind(EVENT_NAME) { event ->
-            eventAcceptor.accept(event.data)
+        try {
+            val client = Pusher(config.appKey, PusherOptionsFactory.create(config.cluster))
+            client.subscribe(CHANNEL_NAME).bind(EVENT_NAME) { event ->
+                eventAcceptor.accept(event.data)
+            }
+            client.connect(connectionListener)
+            pusher = client
+        } catch (failure: Exception) {
+            runtime.setStatus(PrinterStatus.ERROR)
+            runtime.appendLog(failure.message ?: "Could not initialize Pusher", LogLevel.ERROR)
+            showNotification("Pusher configuration error")
         }
-        client.connect(connectionListener)
-        pusher = client
+    }
+
+    private fun statusNotificationText(status: PrinterStatus): String = when (status) {
+        PrinterStatus.READY -> "Waiting for print jobs"
+        PrinterStatus.CONNECTING -> "Connecting to Pusher"
+        PrinterStatus.ERROR -> "Printer service error"
+        PrinterStatus.STOPPED -> "Receipt listener is stopped"
+        PrinterStatus.PRINTING -> "Printing receipt"
     }
 
     private val connectionListener = object : ConnectionEventListener {
